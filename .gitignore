@@ -2,6 +2,6 @@
 __pycache__/
 *.pyc
 data/*.json
-books/*.pdf
 node_modules/
 .vercel/
+.vercel

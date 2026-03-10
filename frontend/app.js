@@ -82,7 +82,8 @@ async function openBook(bookId) {
 
 // ====== PDF URL ======
 function getPdfUrl(bookId) {
-    return `https://gbgkicmmmbobrsuaxldg.supabase.co/storage/v1/object/public/books/${bookId}.pdf`;
+    // GitHub raw থেকে PDF লোড (Supabase ছাড়াই কাজ করবে)
+    return `https://raw.githubusercontent.com/ABDUL31122/ai-teacher/main/books/book.pdf`;
 }
 
 // ====== পাতা রেন্ডার ======
