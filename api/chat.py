@@ -47,7 +47,8 @@ def call_groq(messages):
         data=payload,
         headers={
             "Authorization": "Bearer " + api_key,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "AI-Teacher/1.0"
         },
         method="POST"
     )
