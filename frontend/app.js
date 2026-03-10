@@ -1,9 +1,9 @@
-// ====== AI Teacher — মূল অ্যাপ ======
+// ====== AI Teacher App ======
+const API_BASE = 'https://project-kq2nc.vercel.app';
+const SUPABASE_URL = 'https://gbgkicmmmbobrsuaxldg.supabase.co';
+const PDF_BASE = `${SUPABASE_URL}/storage/v1/object/public/books`;
 
-// API বেস URL (Vercel ডিপ্লয়ের পর আপডেট হবে)
-const API_BASE = window.location.origin;
-
-// ====== স্টেট ======
+// ====== State ======
 let currentView = 'library';
 let currentBook = null;
 let pdfDoc = null;
@@ -11,157 +11,190 @@ let currentPage = 1;
 let totalPages = 0;
 let chatHistory = [];
 let chatOpen = false;
+let userId = '';
+let rendering = false;
 
-// ====== বই লোড ======
+// ====== Init ======
+document.addEventListener('DOMContentLoaded', () => {
+    userId = getOrCreateUserId();
+    checkBlockAndBroadcast();
+    loadBooks();
+});
+
+// ====== User ID ======
+function getOrCreateUserId() {
+    let id = localStorage.getItem('ai_teacher_uid');
+    if (!id) {
+        id = 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        localStorage.setItem('ai_teacher_uid', id);
+    }
+    return id;
+}
+
+// ====== Block & Broadcast Check ======
+async function checkBlockAndBroadcast() {
+    try {
+        const res = await fetch(`${API_BASE}/api/admin?action=check&user_id=${userId}`);
+        const data = await res.json();
+        if (data.blocked) {
+            document.getElementById('blockedScreen').classList.remove('hidden');
+            return;
+        }
+        if (data.broadcast && data.broadcast.message) {
+            document.getElementById('broadcastText').textContent = data.broadcast.message;
+            document.getElementById('broadcastBanner').classList.remove('hidden');
+        }
+    } catch (e) { /* ignore */ }
+}
+
+function dismissBroadcast() {
+    document.getElementById('broadcastBanner').classList.add('hidden');
+}
+
+// ====== Load Books ======
 async function loadBooks() {
     const grid = document.getElementById('bookGrid');
-    
     try {
         const res = await fetch(`${API_BASE}/api/books`);
         const data = await res.json();
-        
         grid.innerHTML = data.books.map(book => `
             <div class="book-card" onclick="openBook('${book.id}')">
                 <div class="book-cover">${book.cover}</div>
                 <div class="book-title">${book.title}</div>
-                <div class="book-info">${book.code} • ${book.pages} পাতা</div>
+                <div class="book-info">${book.code} • ${book.pages} pages</div>
+                <div class="book-badge">SSC</div>
             </div>
         `).join('');
     } catch (e) {
-        // API না পেলে ডিফল্ট বই দেখাও
         grid.innerHTML = `
             <div class="book-card" onclick="openBook('bangla-2nd-paper')">
                 <div class="book-cover">📕</div>
                 <div class="book-title">বাংলা দ্বিতীয় পত্র (ব্যাকরণ)</div>
-                <div class="book-info">SSC-2651 • ৩০১ পাতা</div>
+                <div class="book-info">SSC-2651 • 301 pages</div>
+                <div class="book-badge">SSC</div>
             </div>
         `;
     }
 }
 
-// ====== বই সার্চ ======
 function filterBooks() {
-    const query = document.getElementById('searchInput').value.toLowerCase();
-    const cards = document.querySelectorAll('.book-card');
-    cards.forEach(card => {
-        const title = card.querySelector('.book-title').textContent.toLowerCase();
-        card.style.display = title.includes(query) ? '' : 'none';
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('.book-card').forEach(c => {
+        const t = c.querySelector('.book-title').textContent.toLowerCase();
+        c.style.display = t.includes(q) ? '' : 'none';
     });
 }
 
-// ====== বই ওপেন ======
+// ====== Open Book ======
 async function openBook(bookId) {
     currentBook = bookId;
     showView('reader');
-    
-    // PDF URL — Supabase থেকে লোড হবে
-    // এখন ডেমোর জন্য placeholder
-    const pdfUrl = getPdfUrl(bookId);
-    
-    if (pdfUrl) {
-        try {
-            const loadingTask = pdfjsLib.getDocument(pdfUrl);
-            pdfDoc = await loadingTask.promise;
-            totalPages = pdfDoc.numPages;
-            currentPage = 1;
-            renderPage(currentPage);
-            
-            // ক্যাশে সেভ
-            cacheBook(bookId, pdfUrl);
-        } catch (e) {
-            document.getElementById('pdfContainer').innerHTML = `
-                <div style="padding: 40px; text-align: center; color: #666;">
-                    <p style="font-size: 3rem;">📚</p>
-                    <p style="margin-top: 16px;">বই লোড হচ্ছে না।</p>
-                    <p style="font-size: 0.85rem; margin-top: 8px;">PDF ফাইল Supabase-এ আপলোড করুন।</p>
-                </div>
-            `;
-        }
+    document.getElementById('readerLoading').style.display = 'flex';
+
+    const pdfUrl = `${PDF_BASE}/${bookId}.pdf`;
+
+    try {
+        const loadingTask = pdfjsLib.getDocument({
+            url: pdfUrl,
+            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+            cMapPacked: true,
+        });
+
+        pdfDoc = await loadingTask.promise;
+        totalPages = pdfDoc.numPages;
+        currentPage = 1;
+
+        document.getElementById('readerLoading').style.display = 'none';
+        await renderPage(currentPage);
+        cacheBook(pdfUrl);
+    } catch (e) {
+        document.getElementById('readerLoading').innerHTML = `
+            <span style="font-size:3rem">📚</span>
+            <p style="margin-top:16px;color:#666">Could not load book.</p>
+            <p style="font-size:0.8rem;color:#999;margin-top:8px">Check your internet connection.</p>
+            <button onclick="openBook('${bookId}')" style="margin-top:16px;padding:10px 24px;background:#1a7f5a;color:white;border:none;border-radius:10px;cursor:pointer">Retry</button>
+        `;
     }
 }
 
-// ====== PDF URL ======
-function getPdfUrl(bookId) {
-    // GitHub raw থেকে PDF লোড (Supabase ছাড়াই কাজ করবে)
-    return `https://raw.githubusercontent.com/ABDUL31122/ai-teacher/main/books/book.pdf`;
-}
-
-// ====== পাতা রেন্ডার ======
+// ====== Render Page ======
 async function renderPage(num) {
-    if (!pdfDoc) return;
-    
-    const page = await pdfDoc.getPage(num);
-    const canvas = document.getElementById('pdfCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // মোবাইলে ফিট করার জন্য স্কেল
-    const containerWidth = document.getElementById('pdfContainer').clientWidth;
-    const viewport = page.getViewport({ scale: 1 });
-    const scale = (containerWidth - 16) / viewport.width;
-    const scaledViewport = page.getViewport({ scale });
-    
-    canvas.width = scaledViewport.width;
-    canvas.height = scaledViewport.height;
-    
-    await page.render({
-        canvasContext: ctx,
-        viewport: scaledViewport
-    }).promise;
-    
-    // পাতা নম্বর আপডেট
-    document.getElementById('pageInfo').textContent = `${num}/${totalPages}`;
+    if (!pdfDoc || rendering) return;
+    rendering = true;
+
+    try {
+        const page = await pdfDoc.getPage(num);
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const containerWidth = document.getElementById('pdfContainer').clientWidth;
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = Math.min((containerWidth - 8) / viewport.width, 2.0);
+        const scaledViewport = page.getViewport({ scale });
+
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+
+        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        document.getElementById('pageInfo').textContent = `${num} / ${totalPages}`;
+
+        // Scroll to top on page change
+        document.getElementById('pdfContainer').scrollTop = 0;
+    } catch (e) {
+        console.error('Render error:', e);
+    }
+
+    rendering = false;
 }
 
-// ====== পাতা উল্টানো ======
+// ====== Page Navigation ======
 function prevPage() {
-    if (currentPage > 1) {
-        currentPage--;
-        renderPage(currentPage);
-    }
+    if (currentPage > 1) { currentPage--; renderPage(currentPage); }
 }
-
 function nextPage() {
-    if (currentPage < totalPages) {
-        currentPage++;
-        renderPage(currentPage);
-    }
+    if (currentPage < totalPages) { currentPage++; renderPage(currentPage); }
 }
 
-// ====== সোয়াইপ জেসচার ======
-let touchStartX = 0;
-let touchEndX = 0;
+// ====== Swipe Gesture ======
+let touchStartX = 0, touchStartY = 0;
 
 document.addEventListener('touchstart', e => {
     if (currentView !== 'reader') return;
     touchStartX = e.changedTouches[0].screenX;
-});
+    touchStartY = e.changedTouches[0].screenY;
+}, { passive: true });
 
 document.addEventListener('touchend', e => {
     if (currentView !== 'reader') return;
-    touchEndX = e.changedTouches[0].screenX;
-    const diff = touchStartX - touchEndX;
-    
-    if (Math.abs(diff) > 50) {
-        if (diff > 0) nextPage();  // বামে সোয়াইপ → পরের পাতা
-        else prevPage();           // ডানে সোয়াইপ → আগের পাতা
+    const dx = touchStartX - e.changedTouches[0].screenX;
+    const dy = Math.abs(touchStartY - e.changedTouches[0].screenY);
+    if (Math.abs(dx) > 60 && dy < 100) {
+        if (dx > 0) nextPage();
+        else prevPage();
+    }
+}, { passive: true });
+
+// ====== Keyboard ======
+document.addEventListener('keydown', e => {
+    if (currentView === 'reader') {
+        if (e.key === 'ArrowLeft') prevPage();
+        if (e.key === 'ArrowRight') nextPage();
     }
 });
 
-// ====== ভিউ ম্যানেজমেন্ট ======
+// ====== View Management ======
 function showView(view) {
     currentView = view;
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById(view === 'library' ? 'libraryView' : 'readerView').classList.add('active');
-    
-    const backBtn = document.getElementById('backBtn');
-    const title = document.getElementById('headerTitle');
-    
+
     if (view === 'reader') {
-        backBtn.classList.remove('hidden');
-        title.textContent = '📖 বই পড়ুন';
+        document.getElementById('readerView').classList.add('active');
+        document.getElementById('backBtn').classList.remove('hidden');
+        document.getElementById('headerTitle').textContent = '📖 Reading';
     } else {
-        backBtn.classList.add('hidden');
-        title.textContent = '📚 AI Teacher';
+        document.getElementById('libraryView').classList.add('active');
+        document.getElementById('backBtn').classList.add('hidden');
+        document.getElementById('headerTitle').textContent = '📚 AI Teacher';
     }
 }
 
@@ -170,51 +203,45 @@ function goBack() {
     pdfDoc = null;
 }
 
-// ====== চ্যাটবট ======
+// ====== Chat ======
 function toggleChat() {
     chatOpen = !chatOpen;
     document.getElementById('chatPanel').classList.toggle('open', chatOpen);
-    if (chatOpen) {
-        document.getElementById('userInput').focus();
-    }
+    if (chatOpen) document.getElementById('userInput').focus();
 }
 
 async function sendMessage() {
     const input = document.getElementById('userInput');
     const text = input.value.trim();
     if (!text) return;
-    
+
     input.value = '';
     addMessage(text, 'user');
-    
-    // চ্যাট হিস্টোরিতে যোগ
     chatHistory.push({ role: 'user', content: text });
-    
-    // লোডিং দেখাও
-    const loadingId = addMessage('⏳ চিন্তা করছি...', 'loading');
-    
+
+    const loadingId = addMessage('⏳ Thinking...', 'loading');
+
     try {
         const res = await fetch(`${API_BASE}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                messages: chatHistory.slice(-10), // শেষ ১০টা মেসেজ
-                book_context: currentBook ? `বর্তমান বই: ${currentBook}, পাতা: ${currentPage}` : ''
+                messages: chatHistory.slice(-10),
+                book_context: currentBook ? `Book: ${currentBook}, Page: ${currentPage}/${totalPages}` : ''
             })
         });
-        
         const data = await res.json();
         removeMessage(loadingId);
-        
+
         if (data.reply) {
             addMessage(data.reply, 'ai');
             chatHistory.push({ role: 'assistant', content: data.reply });
-        } else {
-            addMessage('❌ দুঃখিত, একটু সমস্যা হয়েছে। আবার চেষ্টা করুন।', 'ai');
+        } else if (data.error) {
+            addMessage('❌ Error: ' + data.error, 'ai');
         }
     } catch (e) {
         removeMessage(loadingId);
-        addMessage('❌ সার্ভারে কানেক্ট হচ্ছে না। ইন্টারনেট চেক করুন।', 'ai');
+        addMessage('📵 No internet. You can still read books offline!', 'ai');
     }
 }
 
@@ -235,37 +262,19 @@ function removeMessage(id) {
     if (el) el.remove();
 }
 
-// ====== কুইক অ্যাকশন ======
 function quickAction(action) {
-    const pageContext = currentPage ? ` (পাতা ${currentPage})` : '';
-    document.getElementById('userInput').value = action + pageContext;
-    
+    const ctx = currentPage ? ` (Page ${currentPage})` : '';
+    document.getElementById('userInput').value = action + ctx;
     if (!chatOpen) toggleChat();
-    sendMessage();
+    setTimeout(() => sendMessage(), 100);
 }
 
-// ====== অফলাইন ক্যাশ ======
-async function cacheBook(bookId, url) {
+// ====== Offline Cache ======
+async function cacheBook(url) {
     if ('caches' in window) {
         try {
             const cache = await caches.open('ai-teacher-books');
             await cache.add(url);
-            console.log(`✅ বই ক্যাশ হয়েছে: ${bookId}`);
-        } catch (e) {
-            console.log('ক্যাশ ব্যর্থ:', e);
-        }
+        } catch (e) { /* ignore */ }
     }
 }
-
-// ====== কীবোর্ড শর্টকাট ======
-document.addEventListener('keydown', e => {
-    if (currentView === 'reader') {
-        if (e.key === 'ArrowLeft') prevPage();
-        if (e.key === 'ArrowRight') nextPage();
-    }
-});
-
-// ====== অ্যাপ শুরু ======
-document.addEventListener('DOMContentLoaded', () => {
-    loadBooks();
-});

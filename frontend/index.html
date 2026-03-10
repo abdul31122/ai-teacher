@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html lang="bn" dir="ltr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>AI Teacher — আপনার পড়ালেখার সহকারী</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>AI Teacher — Your Study Companion</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a7f5a">
-    <meta name="description" content="AI Teacher — SSC ছাত্রদের জন্য বাংলা টিউটর। বই পড়ুন, প্রশ্ন করুন, MCQ প্র্যাকটিস করুন।">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- ====== হেডার ====== -->
-    <header class="header">
+    <!-- ====== Header ====== -->
+    <header class="header" id="mainHeader">
         <div class="header-left">
             <button id="backBtn" class="btn-icon hidden" onclick="goBack()">←</button>
             <h1 id="headerTitle">📚 AI Teacher</h1>
@@ -19,36 +22,58 @@
         <button id="chatToggle" class="btn-chat" onclick="toggleChat()">💬</button>
     </header>
 
-    <!-- ====== লাইব্রেরি (বই তালিকা) ====== -->
+    <!-- ====== Broadcast Banner ====== -->
+    <div id="broadcastBanner" class="broadcast-banner hidden">
+        <span id="broadcastText"></span>
+        <button onclick="dismissBroadcast()">✕</button>
+    </div>
+
+    <!-- ====== Blocked Screen ====== -->
+    <div id="blockedScreen" class="blocked-screen hidden">
+        <div class="blocked-content">
+            <span style="font-size:4rem">⏳</span>
+            <h2>Server is currently busy</h2>
+            <p>Please try again later.</p>
+        </div>
+    </div>
+
+    <!-- ====== Library Page ====== -->
     <main id="libraryView" class="view active">
         <div class="search-box">
-            <input type="text" id="searchInput" placeholder="🔍 বই খুঁজুন..." oninput="filterBooks()">
+            <input type="text" id="searchInput" placeholder="🔍 Search books..." oninput="filterBooks()">
         </div>
         <div id="bookGrid" class="book-grid">
-            <!-- বই কার্ড এখানে আসবে -->
+            <div class="book-card skeleton"></div>
+            <div class="book-card skeleton"></div>
         </div>
     </main>
 
-    <!-- ====== বুক রিডার ====== -->
+    <!-- ====== Fullscreen Book Reader ====== -->
     <main id="readerView" class="view">
+        <div id="readerLoading" class="reader-loading">
+            <div class="spinner"></div>
+            <p>Loading book...</p>
+        </div>
         <div id="pdfContainer" class="pdf-container">
             <canvas id="pdfCanvas"></canvas>
         </div>
-        <div class="reader-controls">
-            <button onclick="prevPage()">◄ আগের পাতা</button>
-            <span id="pageInfo">০/০</span>
-            <button onclick="nextPage()">পরের পাতা ►</button>
-        </div>
-        <!-- কুইক অ্যাকশন বাটন -->
-        <div class="quick-actions">
-            <button onclick="quickAction('এই পাঠ বুঝিয়ে দাও')">📖 বুঝিয়ে দাও</button>
-            <button onclick="quickAction('এই পাঠ থেকে ৫টা MCQ দাও')">❓ MCQ</button>
-            <button onclick="quickAction('এই পাঠের সারমর্ম দাও')">📋 সারমর্ম</button>
-            <button onclick="quickAction('এই পাঠ থেকে সৃজনশীল প্রশ্ন দাও')">🎯 সৃজনশীল</button>
+        <div class="reader-bottom">
+            <div class="reader-controls">
+                <button onclick="prevPage()" id="prevBtn">◄</button>
+                <span id="pageInfo">0/0</span>
+                <button onclick="nextPage()" id="nextBtn">►</button>
+            </div>
+            <div class="quick-actions">
+                <button onclick="quickAction('Explain this lesson')">📖 Explain</button>
+                <button onclick="quickAction('Give me 5 MCQs from this page')">❓ MCQ</button>
+                <button onclick="quickAction('Summarize this page')">📋 Summary</button>
+                <button onclick="quickAction('Give creative questions from this lesson')">🎯 Creative</button>
+                <button onclick="quickAction('Give exam-style questions')">📝 Exam Q</button>
+            </div>
         </div>
     </main>
 
-    <!-- ====== AI চ্যাটবট ====== -->
+    <!-- ====== AI Chat Panel ====== -->
     <div id="chatPanel" class="chat-panel">
         <div class="chat-header">
             <span>🤖 AI Teacher</span>
@@ -58,31 +83,31 @@
             <div class="msg ai">
                 بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ<br><br>
                 আসসালামু আলাইকুম! 😊<br>
-                আমি AI Teacher — আপনার পড়ালেখার সহকারী!<br><br>
-                📖 বই থেকে যেকোনো পাঠ বুঝিয়ে চাইতে পারেন<br>
-                ❓ MCQ বা সৃজনশীল প্রশ্ন চাইতে পারেন<br>
-                📝 সারমর্ম চাইতে পারেন<br><br>
-                আজকে কোন পাঠ নিয়ে পড়াশোনা করবেন? 📚
+                I'm AI Teacher — your study companion!<br><br>
+                📖 Ask me to explain any lesson<br>
+                ❓ Request MCQs for practice<br>
+                📋 Get summaries<br><br>
+                What would you like to study today? 📚
             </div>
         </div>
         <div class="chat-input">
-            <input type="text" id="userInput" placeholder="প্রশ্ন লিখুন..." onkeypress="if(event.key==='Enter')sendMessage()">
+            <input type="text" id="userInput" placeholder="Ask a question..." onkeypress="if(event.key==='Enter')sendMessage()">
             <button onclick="sendMessage()">➤</button>
         </div>
     </div>
 
-    <!-- PDF.js লাইব্রেরি -->
+    <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <script src="app.js"></script>
 
-    <!-- Service Worker রেজিস্ট্রেশন (অফলাইন ক্যাশ) -->
+    <!-- Service Worker -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').then(() => {
-                console.log('✅ অফলাইন ক্যাশ রেডি!');
+                console.log('✅ Offline cache ready!');
             });
         }
     </script>
