@@ -49,7 +49,7 @@ SYSTEM_PROMPT = """بِسْمِ اللَّهِ الرَّحْمَنِ الرَّ
 
 def call_groq(messages):
     """Groq API কল — urllib দিয়ে (কোনো SDK লাগে না)"""
-    api_key = os.environ.get("GROQ_API_KEY", "")
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
     
     payload = json.dumps({
         "model": "llama-3.3-70b-versatile",
