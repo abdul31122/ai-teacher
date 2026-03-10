@@ -1,0 +1,18 @@
+{
+    "name": "AI Teacher — পড়ালেখার সহকারী",
+    "short_name": "AI Teacher",
+    "description": "SSC ছাত্রদের জন্য বাংলা টিউটর। বই পড়ুন, প্রশ্ন করুন, MCQ প্র্যাকটিস করুন।",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#1a7f5a",
+    "background_color": "#f5f7fa",
+    "lang": "bn",
+    "icons": [
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        }
+    ]
+}
